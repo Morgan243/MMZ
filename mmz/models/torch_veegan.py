@@ -70,7 +70,7 @@ class VEEGAN_Trainer:
                     ###
                     ## formula 7
                     # disc_g_out = disc_m(torch.cat([z_i, g_from_z], dim=1))
-                    disc_g_out = -torch.log(self.disc_m(torch.cat([z_i, g_from_z], dim=1)) + 1e-5)
+                    disc_g_out = -torch.log(self.disc_m(torch.cat([z_i, g_from_z], dim=1).clamp(1e-8)))
                     #disc_g_out = torch.sigmoid(self.disc_m(torch.cat([z_i, g_from_z], dim=1)))
                     d_z = torch.sqrt((z_i - z_i_g) ** 2).mean()
 
