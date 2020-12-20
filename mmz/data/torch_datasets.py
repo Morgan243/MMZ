@@ -85,19 +85,22 @@ class CelebA(data.Dataset):
         self.files = glob(join(self.dataroot, "img_align_celeba", "*"))
         #self.num_files = len(self.files)
         #self.num_images = self.num_files
-        self.num_images = self.num_files = self.num_samples
+        #self.num_images = self.num_files = self.num_samples
 
-        assert self.num_files <= len(self.attr_df)
+        #assert self.num_files <= len(self.attr_df)
 
         self.fid_to_path = {split(f)[-1]: f
                             for f in tqdm(self.files, desc="Getting files")}
 
 
-        self.train_ixes = np.random.choice(self.attr_df.index, self.num_samples,
-                                           replace=True)
-        self.test_ixes = np.random.choice([i for i in self.attr_df.index
-                                           if i not in self.train_ixes],
-                                        1000, replace=False)
+        if self.num_samples is None:
+            self.train_ixes = self.attr_df.index.tolist()
+        else:
+            self.train_ixes = np.random.choice(self.attr_df.index, self.num_samples,
+                                               replace=True)
+        #self.test_ixes = np.random.choice([i for i in self.attr_df.index
+        #                                   if i not in self.train_ixes],
+        #                                1000, replace=False)
 
         self.transforms = trfs.Compose([
                                         trfs.Resize(64),
@@ -141,5 +144,5 @@ class CelebA(data.Dataset):
         return self.transforms(image), torch.FloatTensor(label_arr)
 
     def __len__(self):
-        return self.num_images
+        return len(self.train_ixes)
 
