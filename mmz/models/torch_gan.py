@@ -331,8 +331,11 @@ class GANTrainer():
     def grid_display(data, figsize=(10, 10),
                      pad_value=0, title='',
                      xlabel='', ylabel='',
-                     nrow=8):
-        fig, ax = plt.subplots(figsize=figsize)
+                     nrow=8, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
         ax.axis("off")
         ax.set_title(title)
         ax.set_xlabel(xlabel)
