@@ -173,7 +173,7 @@ class BaseTrainer():
                         update_d = self.train_inner_step(epoch, data)
 
                         epoch_results['epoch'].append(epoch)
-                        epoch_results['batch'] = i
+                        epoch_results['batch'].append(i)
 
                         prog_msgs = list()
                         for k, v in update_d.items():
@@ -196,7 +196,8 @@ class BaseTrainer():
                         batch_pbar.set_description(msg)
                         batch_pbar.update(1)
                         if not i % batch_cb_delta:
-                            batch_cb_history.append({k: cb(self, epoch) for k, cb in batch_callbacks.items()})
+                            batch_cb_history.append({k: cb(self, epoch)
+                                                     for k, cb in batch_callbacks.items()})
 
                 #self.epoch_losses.append(dict(gen_losses=G_losses, disc_losses=D_losses))
                 #self.epoch_losses.append(epoch_results)
