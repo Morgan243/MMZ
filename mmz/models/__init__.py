@@ -40,6 +40,8 @@ class BaseTrainer():
     device = attr.ib(torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
 
     epochs_trained = attr.ib(0, init=False)
+    epoch_cb_history = attr.ib(attr.Factory(list), init=False)
+    batch_cb_history = attr.ib(attr.Factory(list), init=False)
 
     def __attrs_post_init__(self):
         self.model_map = {k: v.to(self.device) for k, v in self.model_map.items()}
@@ -155,8 +157,10 @@ class BaseTrainer():
 
         #self.epoch_losses = list()
         self.train_batch_results = list()
-        epoch_cb_history = [{k: cb(self, 0) for k, cb in epoch_callbacks.items()}]
-        batch_cb_history = [{k: cb(self, 0) for k, cb in batch_callbacks.items()}]
+        self.epoch_results = dict(epoch=list(), batch=list())
+
+        self.epoch_cb_history += [{k: cb(self, 0) for k, cb in epoch_callbacks.items()}]
+        self.batch_cb_history += [{k: cb(self, 0) for k, cb in batch_callbacks.items()}]
 
         if self.n_samples is None:
             try:
@@ -164,26 +168,27 @@ class BaseTrainer():
             except:
                 print("Unable to determine generator lengthe using __len__")
 
-        epoch_results = dict(epoch=list(), batch=list())
         with tqdm(total=n_epochs,
-                  desc='Training epoch') as epoch_pbar:
+                  desc='Training epoch',
+                  ncols='100%') as epoch_pbar:
             for epoch in range(self.epochs_trained, self.epochs_trained + n_epochs):
-                with tqdm(total=self.n_samples, desc='-loss-') as batch_pbar:
+                with tqdm(total=self.n_samples, desc='-loss-', ncols='100%') as batch_pbar:
                     for i, data in enumerate(self.data_gen):
                         update_d = self.train_inner_step(epoch, data)
 
-                        epoch_results['epoch'].append(epoch)
-                        epoch_results['batch'].append(i)
+                        self.epoch_results['epoch'].append(epoch)
+                        self.epoch_results['batch'].append(i)
 
                         prog_msgs = list()
                         for k, v in update_d.items():
-                            if k not in epoch_results:
-                                epoch_results[k] = [v]
+                            # TODO: What about spruious results? Maybe do list of dicts instead?
+                            if k not in self.epoch_results:
+                                self.epoch_results[k] = [v]
                             else:
-                                epoch_results[k].append(v)
+                                self.epoch_results[k].append(v)
 
 
-                            v_l = np.round(np.mean(epoch_results[k][-20:]), 4)
+                            v_l = np.round(np.mean(self.epoch_results[k][-20:]), 4)
                             prog_msgs.append(f"{k}: {v_l}")
 
 
@@ -196,17 +201,17 @@ class BaseTrainer():
                         batch_pbar.set_description(msg)
                         batch_pbar.update(1)
                         if not i % batch_cb_delta:
-                            batch_cb_history.append({k: cb(self, epoch)
+                            self.batch_cb_history.append({k: cb(self, epoch)
                                                      for k, cb in batch_callbacks.items()})
 
                 #self.epoch_losses.append(dict(gen_losses=G_losses, disc_losses=D_losses))
                 #self.epoch_losses.append(epoch_results)
                 #self.train_batch_results.append(epoch_results)
                 self.epochs_trained += 1
-                epoch_cb_history.append({k: cb(self, epoch) for k, cb in epoch_callbacks.items()})
+                self.epoch_cb_history.append({k: cb(self, epoch) for k, cb in epoch_callbacks.items()})
                 epoch_pbar.update(1)
         #return self.train_batch_results
-        return epoch_results
+        return self.epoch_results
 
     @staticmethod
     def grid_display(data, figsize=(10, 10),

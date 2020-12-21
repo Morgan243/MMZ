@@ -8,9 +8,9 @@ import attr
 from tqdm.auto import tqdm
 
 def auto_extend(*args, max_len=None):
-    args = [ list(a) if isinstance(a, (list, tuple)) else [a] for a in args]
+    args = [list(a) if isinstance(a, (list, tuple)) else [a] for a in args]
     max_len = max(map(len, args)) if max_len is None else max_len
-    args = [ a if len(a) == max_len else a + ([a[-1]] * (max_len - len(a))) for a in args]
+    args = [a if len(a) == max_len else a + ([a[-1]] * (max_len - len(a))) for a in args]
     return list(zip(*args))
 
 def make_model_from_block(cls, z_dim, n_channels, kernel_sizes,
@@ -116,9 +116,10 @@ class CNNTransposeBlock(torch.nn.Module):
                                           bias=bias,
                                           dilation=dilation)
         self.dropout = nn.Dropout2d(dropout) if dropout is not None else None
-        self.bn = nn.BatchNorm2d(out_channels)
         #self.act = nn.ReLU(True)
         self.batchnorm = batchnorm
+        if self.batchnorm:
+            self.bn = nn.BatchNorm2d(num_features=out_channels)
 
         self.act = (nn.LeakyReLU(negative_slope=0.2)
                     if activation is None else activation)
