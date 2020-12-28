@@ -79,15 +79,9 @@ class CelebA(data.Dataset):
     transforms = attr.ib(None)
     num_samples = attr.ib(5000)
 
-
     def __attrs_post_init__(self):
         self.prep_attributes()
         self.files = glob(join(self.dataroot, "img_align_celeba", "*"))
-        #self.num_files = len(self.files)
-        #self.num_images = self.num_files
-        #self.num_images = self.num_files = self.num_samples
-
-        #assert self.num_files <= len(self.attr_df)
 
         self.fid_to_path = {split(f)[-1]: f
                             for f in tqdm(self.files, desc="Getting files")}
@@ -98,16 +92,14 @@ class CelebA(data.Dataset):
         else:
             self.train_ixes = np.random.choice(self.attr_df.index, self.num_samples,
                                                replace=True)
-        #self.test_ixes = np.random.choice([i for i in self.attr_df.index
-        #                                   if i not in self.train_ixes],
-        #                                1000, replace=False)
 
-        self.transforms = trfs.Compose([
-                                        trfs.Resize(64),
-                                        trfs.CenterCrop(64),
-                                        trfs.ToTensor(),
-                                        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                                    ])
+        if self.transforms is None:
+            self.transforms = trfs.Compose([
+                                            trfs.Resize(64),
+                                            trfs.CenterCrop(64),
+                                            trfs.ToTensor(),
+                                            trfs.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                                        ])
 
     def to_dataloader(self, batch_size=64, num_workers=2,
                       batches_per_epoch=None, random_sample=True,
