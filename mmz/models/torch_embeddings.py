@@ -49,12 +49,12 @@ class GloveBase(torch.nn.Module):
         alpha = cls.alpha if alpha is None else alpha
 
         weights = (x / x_max) ** alpha
-        weights = torch.min(wx, torch.ones_like(weights, device=x.device))
+        weights = torch.min(weights, torch.ones_like(weights, device=x.device))
         return weights
 
     @staticmethod
     def weighted_mse_loss(weights, inputs, targets):
-        loss = weights * F.mse_loss(inputs, targets, reduction='none')
+        loss = weights * torch.nn.functional.mse_loss(inputs, targets, reduction='none')
         return loss.mean()
 
     def forward(self, x):
