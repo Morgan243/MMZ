@@ -12,6 +12,74 @@ from glob import glob
 from os.path import split, join
 import numpy as np
 
+class BaseDataset(data.Dataset):
+    env_key = None
+    @staticmethod
+    def data_loader_from_dataset(dset, batch_size=64, num_workers=2,
+                      batches_per_epoch=None, random_sample=True,
+                      shuffle=False, **kwargs):
+        if random_sample:
+            if batches_per_epoch is None:
+                batches_per_epoch = len(dset) // batch_size
+
+            dataloader = data.DataLoader(dset, batch_size=batch_size,
+                                          sampler=data.RandomSampler(dset,
+                                                                      replacement=True,
+                                                                      num_samples=batches_per_epoch * batch_size),
+                                          shuffle=shuffle, num_workers=num_workers,
+                                          **kwargs)
+        else:
+            dataloader = data.DataLoader(dset, batch_size=batch_size,
+                                          shuffle=shuffle, num_workers=num_workers,
+                                          **kwargs)
+        return dataloader
+
+
+    def to_dataloader(self, batch_size=64, num_workers=2,
+                      batches_per_epoch=None, random_sample=True,
+                      shuffle=False, **kwargs):
+        dl = self.data_loader_from_dataset(self, batch_size=batch_size,
+                                      num_workers=num_workers,
+                                      batches_per_epoch=batches_per_epoch,
+                                      random_sample=random_sample,
+                                      shuffle=shuffle, **kwargs)
+        return dl
+
+
+def make_fashion_mnist(batch_size=128, num_workers=4, image_size=28, dataroot='~/datasets'):
+    # from torch.utils.data import dataset as dset
+    # from torchvision import dataset
+    import torchvision.datasets as dset
+    import torchvision.transforms as transforms
+    # Root directory for dataset
+    #dataroot = "~/datasets"
+
+    #image_size = 28
+    #batch_size = 128
+    #workers = 4
+
+    fashion_dataset = dset.FashionMNIST(dataroot, train=True,
+                                        transform=transforms.Compose([
+                                            transforms.Resize(image_size),
+                                            transforms.CenterCrop(image_size),
+                                            transforms.ToTensor(),
+                                            # transforms.Normalize(0.5, 0.5),
+                                            # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                                        ]), target_transform=None, download=True)
+    dl = BaseDataset.data_loader_from_dataset(fashion_dataset, batch_size=batch_size,
+                                              num_workers=num_workers)
+    return fashion_dataset, dl
+
+    # Create the dataloader
+    #dl = torch.utils.data.DataLoader(fashion_dataset, batch_size=batch_size,
+    #                                 sampler=torch.utils.data.RandomSampler(fashion_dataset,
+    #                                                                        replacement=True,
+    #                                                                        num_samples=100 * batch_size),
+    #                                 shuffle=False, num_workers=workers)
+
+    # Decide which device we want to run on
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 @attr.attrs
 class NDGaussian(data.Dataset):
     n = attr.ib()
