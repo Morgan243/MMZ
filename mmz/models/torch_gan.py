@@ -89,7 +89,55 @@ class FullyConnectedBlock(torch.nn.Module):
     def forward(self, x):
         return self.blk(x)
 
+class CNNUpsampleBlock(torch.nn.Module):
+    def __init__(self, upsample_size,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 #output_padding=0,
+                 groups=1,
+                 bias=True,
+                 dilation=1,
+                 batchnorm=True,
+                 dropout=0.0,
+                 activation=None,
+                 upsample_mode='nearest',
+                 upsample_align_corners=None
+                 ):
+        super(CNNUpsampleBlock, self).__init__()
 
+        self.upsample = nn.Upsample(size=upsample_size, mode=upsample_mode,
+                                    align_corners=upsample_align_corners)
+        self.conv = nn.Conv2d(in_channels=in_channels,
+                              out_channels=out_channels,
+                              kernel_size=kernel_size,
+                              stride=stride,
+                              padding=padding, groups=groups,
+                              bias=bias,
+                              dilation=dilation)
+        self.dropout = nn.Dropout2d(dropout) if dropout is not None else None
+        #self.act = nn.ReLU(True)
+        self.batchnorm = batchnorm
+        if self.batchnorm:
+            self.bn = nn.BatchNorm2d(num_features=in_channels)
+
+        self.act = (nn.PReLU() if activation is None else activation)
+
+    def forward(self, x):
+        out = self.upsample(x)
+
+        if self.dropout is not None:
+            out = self.dropout(out)
+
+        if self.batchnorm:
+            out = self.bn(out)
+
+        out = self.conv(out)
+
+        out = self.act(out)
+        return out
 
 class CNNTransposeBlock(torch.nn.Module):
     def __init__(self, in_channels,
