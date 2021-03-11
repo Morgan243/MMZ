@@ -31,6 +31,7 @@ class BaseTrainer():
     data_gen = attr.ib()
     in_channel_size = attr.ib(100)
     in_channel_dim = attr.ib(3)
+    in_trailing_dims = attr.ib((1, 1))
     n_samples = attr.ib(None)
     learning_rate = attr.ib(0.0003)
     beta1 = attr.ib(0.5)
@@ -43,6 +44,9 @@ class BaseTrainer():
     epoch_cb_history = attr.ib(attr.Factory(list), init=False)
     batch_cb_history = attr.ib(attr.Factory(list), init=False)
 
+    default_optim_cls = torch.optim.Adam
+    #default_optim_cls_kws =
+
     def __attrs_post_init__(self):
         self.model_map = {k: v.to(self.device) for k, v in self.model_map.items()}
         #self.opt_map = dict()
@@ -50,9 +54,18 @@ class BaseTrainer():
             m.apply(self.weights_init)
 
             if k not in self.opt_map:
-                self.opt_map[k] = torch.optim.Adam(m.parameters(),
-                                                   lr=self.learning_rate,
-                                                   betas=(self.beta1, 0.999))
+                if self.default_optim_cls == torch.optim.Adam:
+                    self.opt_map[k] = self.default_optim_cls(m.parameters(),
+                                                       lr=self.learning_rate,
+                                                       betas=(self.beta1, 0.999))
+                elif self.default_optim_cls == torch.optim.RMSprop:
+                    self.opt_map[k] = self.default_optim_cls(m.parameters(),
+                                                             lr=self.learning_rate)
+
+
+    #            self.opt_map[k] = torch.optim.Adam(m.parameters(),
+    #                                               lr=self.learning_rate,
+    #                                               betas=(self.beta1, 0.999))
 
 
 
@@ -67,11 +80,11 @@ class BaseTrainer():
 
     def sample_z(self, batch_size):
         if self.in_channel_dim > 1:
-            single_dims = [1] * (self.in_channel_dim - 1)
+            #single_dims = [1] * (self.in_channel_dim - 1)
             # noise = torch.randn(batch_size, self.in_channel_size,
             #                    *single_dims,
             #                    device=self.device)
-            size = [batch_size, self.in_channel_size] + single_dims
+            size = [batch_size, self.in_channel_size] + list(self.in_trailing_dims)
             noise = torch.normal(0, 1, size=tuple(size), device=self.device)
         else:
             # noise = torch.randn(batch_size, self.in_channel_size,
@@ -157,7 +170,7 @@ class BaseTrainer():
 
         #self.epoch_losses = list()
         self.train_batch_results = list()
-        self.epoch_results = dict(epoch=list(), batch=list())
+        self.epoch_results = getattr(self, 'epoch_results', dict(epoch=list(), batch=list()))
 
         self.epoch_cb_history += [{k: cb(self, 0) for k, cb in epoch_callbacks.items()}]
         self.batch_cb_history += [{k: cb(self, 0) for k, cb in batch_callbacks.items()}]
@@ -170,9 +183,11 @@ class BaseTrainer():
 
         with tqdm(total=n_epochs,
                   desc='Training epoch',
-                  ncols='100%') as epoch_pbar:
+                  dynamic_ncols=True
+                  #ncols='100%'
+                  ) as epoch_pbar:
             for epoch in range(self.epochs_trained, self.epochs_trained + n_epochs):
-                with tqdm(total=self.n_samples, desc='-loss-', ncols='100%') as batch_pbar:
+                with tqdm(total=self.n_samples, desc='-loss-', dynamic_ncols=True) as batch_pbar:
                     for i, data in enumerate(self.data_gen):
                         update_d = self.train_inner_step(epoch, data)
 
@@ -217,10 +232,13 @@ class BaseTrainer():
     def grid_display(data, figsize=(10, 10),
                      pad_value=0, title='',
                      xlabel='', ylabel='',
-                     nrow=8):
+                     nrow=8, normalize=True, ax=None):
         from torchvision import utils as vutils
         from matplotlib import pyplot as plt
-        fig, ax = plt.subplots(figsize=figsize)
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
         ax.axis("off")
         ax.set_title(title)
         ax.set_xlabel(xlabel)
@@ -228,7 +246,7 @@ class BaseTrainer():
         ax.imshow(np.transpose(vutils.make_grid(data,
                                                 padding=2,
                                                 nrow=nrow,
-                                                normalize=True,
+                                                normalize=normalize,
                                                 pad_value=pad_value).detach().cpu(), (1, 2, 0)))
 
         return fig
@@ -245,11 +263,109 @@ class BaseTrainer():
         return fake_batch
 
     def display_batch(self, batch_size=16, noise=None, batch_data=None, figsize=(10, 10), title='Generated Data',
-                      pad_value=0):
+                      pad_value=0, ax=None):
         if batch_data is not None:
             fake_batch = batch_data
         else:
             # Generate fake image batch with G
             fake_batch = self.generate(noise=noise, batch_size=batch_size)
 
-        return self.grid_display(fake_batch, figsize=figsize, title=title, pad_value=pad_value)
+        return self.grid_display(fake_batch, figsize=figsize, title=title, pad_value=pad_value, ax=ax)
+
+
+@attr.s
+class EncGANTrainer(BaseTrainer):
+    z_size = attr.ib(100)
+
+    def train_inner_step(self, epoch_i, data_batch):
+        real_label, fake_label = 1, 0
+        real_labels, fake_labels = None, None
+
+        disc_model = self.model_map['disc'].train()
+        gen_model = self.model_map['gen'].train()
+        enc_model = self.model_map['enc'].train()
+
+        disc_optim = self.opt_map['disc']
+        gen_optim = self.opt_map['gen']
+        enc_optim = self.opt_map['enc']
+
+        disc_model.zero_grad()
+
+        # Take a real batch
+        real_x = data_batch[0].to(self.device)
+        batch_size = real_x.shape[0]
+        label_shape = (batch_size,)
+
+        ########
+        # Discriminator updating
+        ###
+        # Labels for the real batch in disc
+        if real_labels is None:
+            real_labels = torch.full(label_shape, real_label,
+                                     device=self.device,
+                                     dtype=torch.float32).view(-1)
+
+        ####
+        # REAL Batch
+        disc_real_output = disc_model(real_x).view(-1)
+        d_real_err = self.criterion(disc_real_output, real_labels)
+        real_z = enc_model(real_x)
+        # real_z = torch.randn(batch_size, z_size, 1, 1, device=self.device)
+
+        # (d_real_err + enc_loss).backward()
+
+        ####
+        # Fake Batch
+        # Generator takes encodings as input
+        # real_z = self.enc_model(disc_intermediate_output)
+
+        # Generate images from encoded z
+        gen_real_z_output = gen_model(real_z.view(batch_size,
+                                                       self.z_size,
+                                                       1, 1))
+        # Disc binary classification of fake inputs
+        if fake_labels is None:
+            fake_labels = torch.full(label_shape,
+                                     fake_label,
+                                     device=self.device,
+                                     dtype=torch.float32).view(-1)
+
+        disc_fake_output = disc_model(gen_real_z_output).view(-1)
+        d_fake_err = self.criterion(disc_fake_output, fake_labels)
+        # d_fake_err.backward(retain_graph=True)
+        d_err = d_real_err + d_fake_err  # + enc_loss
+        d_err.backward(retain_graph=True)
+        # d_real_err.backward()
+        # d_fake_err.backward()
+
+        disc_optim.step()
+
+        #####
+        # Generator updating
+        ###
+        # Give noise to G, then check that it is labeled fake
+        gen_model.zero_grad()
+        enc_model.zero_grad()
+        real_z = enc_model(real_x)
+        # real_z = torch.randn(batch_size, z_size, 1, 1, device=self.device)
+        gen_real_z_output = gen_model(real_z.view(batch_size,
+                                                       self.z_size,
+                                                       1, 1))
+        disc_fake_output = disc_model(gen_real_z_output).view(-1)
+
+        # Calculate an error for the generator (e.g. did we trick discrim)
+        g_d_err = self.criterion(disc_fake_output, real_labels)
+
+        BCE = torch.nn.functional.binary_cross_entropy(gen_real_z_output,
+                                                       real_x,
+                                                       reduction='mean')
+        # enc_loss = torch.norm(real_z) * 0.001
+        enc_loss = BCE
+        (g_d_err + BCE).backward(retain_graph=True)
+
+        gen_optim.step()
+
+        #self.gen_losses.append(g_d_err.item())
+        #self.disc_losses.append(d_err.item())
+        #self.enc_losses.append(enc_loss.item())
+        return dict(g_d_err=g_d_err.items(), d_err=d_err.item(), enc_err=enc_loss.item())
