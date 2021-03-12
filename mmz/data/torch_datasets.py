@@ -45,6 +45,61 @@ class BaseDataset(data.Dataset):
                                       shuffle=shuffle, **kwargs)
         return dl
 
+class FileDirDataset(BaseDataset):
+    def __init__(self, dataroot, load_func=None, filter_func=None, transform=None):
+        self.load_func = self.image_loader if load_func is None else load_func
+        self.transform = transform
+        self.filter_func = filter_func
+
+        self.file_path_d = self.create_file_map(dataroot, filter_func=self.filter_func)
+        import pandas as pd
+        # Series with index as the file name (key of dict) and full path as value
+        self.path_df = pd.Series(self.file_path_d, name='full_path').to_frame()
+        self.label_df = pd.DataFrame(index=self.path_df.index)
+
+        self.all_paths = self.path_df.full_path.values
+        self.all_labels = None
+
+    def __len__(self):
+        return len(self.all_paths)
+
+    def __getitem__(self, item):
+        p = self.all_paths[item]
+        obj = self.load_func(p)
+        if self.transform is not None:
+            obj = self.transform(obj)
+
+        if self.label_df.shape[1] > 0:
+            obj = (obj, self.all_labels[item])
+
+        return obj
+
+
+    def join_labels(self, name, label_s):
+        self.label_df[name] = label_s
+        self.all_labels = self.label_df.values
+        return self
+
+    @staticmethod
+    def image_loader(path):
+        from PIL import Image
+        img = Image.open(path)
+        #with open(path, 'rb') as f:
+        #    img = Image.open(f).load()
+        return img
+
+    @classmethod
+    def create_file_map(cls, dataroot, filter_func=None):
+        import os
+        fname_path_d = dict()
+        for root, dirs, files in os.walk(dataroot):
+            for name in files:
+                #print(os.path.join(root, name))
+                full_path = os.path.join(root, name)
+                if filter_func is None or filter_func(full_path):
+                    fname_path_d[name] = full_path
+        return fname_path_d
+
 
 def make_fashion_mnist(batch_size=128, num_workers=4, image_size=28, dataroot='~/datasets'):
     # from torch.utils.data import dataset as dset
