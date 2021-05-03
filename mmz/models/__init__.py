@@ -8,7 +8,7 @@ class Reshape(torch.nn.Module):
         self.shape = shape
 
     def forward(self, x):
-        return x.view(self.shape)
+        return x.reshape(x.shape[0], *self.shape)
 
 
 class Flatten(torch.nn.Module):
@@ -161,7 +161,6 @@ class BaseTrainer():
 
         return dict(gen_l=errG.item(), disc_l=errD.item())
 
-
     def train(self, n_epochs, epoch_callbacks=None, batch_callbacks=None,
               batch_cb_delta=3):
 
@@ -202,10 +201,8 @@ class BaseTrainer():
                             else:
                                 self.epoch_results[k].append(v)
 
-
                             v_l = np.round(np.mean(self.epoch_results[k][-20:]), 4)
                             prog_msgs.append(f"{k}: {v_l}")
-
 
                         msg = " || ".join(prog_msgs)
                         # Save Losses for plotting later

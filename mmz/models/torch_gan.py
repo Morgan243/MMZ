@@ -208,8 +208,10 @@ class CNNBlock(torch.nn.Module):
         if self.batchnorm:
             self.bn = nn.BatchNorm2d(num_features=out_channels)
         #self.act = nn.ReLU(True)
-        self.act = (nn.LeakyReLU(negative_slope=0.2)
-                    if activation is None else activation)
+        #self.act = (nn.LeakyReLU(negative_slope=0.2)
+        #            if activation is None else activation)
+        self.act = (nn.PReLU() if activation is None else activation)
+
         #self.drp = None
         self.dropout = nn.Dropout2d(dropout) if dropout is not None else None
 
