@@ -6,6 +6,7 @@ import torchvision.utils as vutils
 
 import attr
 from tqdm.auto import tqdm
+from mmz.models import weights_init
 
 def auto_extend(*args, max_len=None):
     args = [list(a) if isinstance(a, (list, tuple)) else [a] for a in args]
@@ -30,13 +31,6 @@ def make_model_from_block(cls, z_dim, n_channels, kernel_sizes,
         model.add_module(name="Block_%d" % i, module=blk)
     return model
 
-def weights_init(m):
-    classname = m.__class__.__name__
-    if 'Conv' in classname or 'Linear' in classname:
-        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
-    elif 'BatchNorm' in classname:
-        torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
-        torch.nn.init.constant_(m.bias.data, 0)
 
 def intermediate_outputs(_m, input_data, show_layer=True, print_display=True):
     outputs = list()
@@ -56,6 +50,7 @@ def intermediate_outputs(_m, input_data, show_layer=True, print_display=True):
 
         outputs.append(_out)
     return outputs
+
 
 class FullyConnectedBlock(torch.nn.Module):
     def __init__(self, in_size, out_size,
@@ -88,6 +83,7 @@ class FullyConnectedBlock(torch.nn.Module):
 
     def forward(self, x):
         return self.blk(x)
+
 
 class CNNUpsampleBlock(torch.nn.Module):
     def __init__(self, upsample_size,
@@ -139,6 +135,7 @@ class CNNUpsampleBlock(torch.nn.Module):
         out = self.act(out)
         return out
 
+
 class CNNTransposeBlock(torch.nn.Module):
     def __init__(self, in_channels,
                     out_channels,
@@ -182,6 +179,7 @@ class CNNTransposeBlock(torch.nn.Module):
 
         out = self.act(out)
         return out
+
 
 class CNNBlock(torch.nn.Module):
     def __init__(self, in_channels,

@@ -1,6 +1,29 @@
+import attr
+from tqdm.auto import tqdm
+import numpy as np
 import torch
 #from torch import data as tdata
 from torch.utils import data as tdata
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if 'Conv' in classname or 'Linear' in classname:
+        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif 'BatchNorm' in classname:
+        torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+        torch.nn.init.constant_(m.bias.data, 0)
+    elif 'LayerNorm' in classname:
+        m.bias.data.zero_()
+        m.weight.data.fill_(1.0)
+
+
+def copy_model_state(m):
+    from collections import OrderedDict
+    s = OrderedDict([(k, v.cpu().detach().clone())
+                      for k, v in m.state_dict().items()])
+    return s
+
 
 class Reshape(torch.nn.Module):
     def __init__(self, shape):
@@ -16,15 +39,85 @@ class Flatten(torch.nn.Module):
         return input.view(input.size(0), -1)
 
 
-import attr
-from tqdm.auto import tqdm
-import numpy as np
+class ScaleByConstant(torch.nn.Module):
+    def __init__(self, divide_by):
+        super(ScaleByConstant, self).__init__()
+        self.divide_by = divide_by
+
+    def forward(self, input):
+        return input / self.divide_by
+
+
+class Permute(torch.nn.Module):
+    def __init__(self, p):
+        super(Permute, self).__init__()
+        self.p = p
+
+    def forward(self, input):
+        return input.permute(*self.p)#(input.size(0), *self.shape)
+
+
+class Unsqueeze(torch.nn.Module):
+    def __init__(self, dim):
+        super(Unsqueeze, self).__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        return x.unsqueeze(self.dim)
+
+
+class Squeeze(torch.nn.Module):
+    def __init__(self):
+        super(Squeeze, self).__init__()
+
+    def forward(self, x):
+        return x.squeeze()
+
+
+class StandardizeOnLastDim(torch.nn.Module):
+    eps = 1e-05
+
+    def __init__(self):
+        super(StandardizeOnLastDim, self).__init__()
+
+    def forward(self, x):
+        t_mu = x.mean(-1, keepdim=True)
+        t_var = x.std(-1, keepdim=True)
+        o_x = (x - t_mu) / (t_var + self.eps)
+        return o_x
+
+
+class Select(torch.nn.Module):
+    def __init__(self, dim=1, index='random', keep_dim=True):
+        super(Select, self).__init__()
+        self.dim = dim
+        self.index = index
+        self.keep_dim = keep_dim
+
+    def forward(self, x):
+        if isinstance(self.index, str) and self.index == 'random':
+            x = x.select(self.dim, np.random.randint(0, x.shape[1]))
+        else:
+            x = x.select(self.dim, self.index)
+
+        x = x.unsqueeze(1) if self.keep_dim else x
+
+        return x
+
+
+class FactorByConstant(torch.nn.Module):
+    def __init__(self, scale):
+        super(FactorByConstant, self).__init__()
+        self.scale = scale
+
+    def forward(self, x):
+        return x * self.scale
+
 
 @attr.attrs
 class BaseTrainer():
     model_map = attr.ib()
     opt_map = attr.ib()
-
 
     #gen_model = attr.ib()
     #disc_model = attr.ib()
