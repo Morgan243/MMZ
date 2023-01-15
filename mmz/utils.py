@@ -1,10 +1,65 @@
 from collections import namedtuple
 
-from graphviz import Digraph
 import torch
 from torch.autograd import Variable, Function
 import torch
 from torch.autograd import Variable, Function
+import json
+import logging
+
+
+# https://stackoverflow.com/questions/42033142/is-there-an-easy-way-to-check-if-an-object-is-json-serializable-in-python
+def is_jsonable(x):
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
+
+def get_logger(logname='mmz', console_level=logging.DEBUG, file_level=logging.DEBUG,
+               format_string='%(asctime)s - %(name)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s',
+               #format_string='%(asctime)s - %(module)s.%(funcName)s - %(levelname)s - %(message)s',
+               output_file=None):
+    logger = logging.getLogger(logname)
+    if logger.hasHandlers():
+        return logging.getLogger(logname)
+    else:
+        pass
+        #print("MAKING NEW LOGGER: " + logname)
+    #logger = < create_my_logger > if not logging.getLogger().hasHandlers() else logging.getLogger()
+    # create logger with 'spam_application'
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(format_string)
+
+    # create file handler which logs even debug messages
+    if output_file is not None:
+        fh = logging.FileHandler(output_file)
+        fh.setLevel(file_level)
+        logger.addHandler(fh)
+        fh.setFormatter(formatter)
+
+    # create console handler with a higher log level
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(console_level)
+    # create formatter and add it to the handlers
+    ch.setFormatter(formatter)
+    # add the handlers to the logger
+    logger.addHandler(ch)
+    return logger
+
+
+def with_logger(cls=None, prefix_name=None):
+    def _make_cls(cls):
+        n = __name__ if prefix_name is None else prefix_name
+        cls.logger = get_logger(n + '.' + cls.__name__)
+        return cls
+
+    cls = _make_cls if cls is None else _make_cls(cls)
+
+    return cls
+
+
 
 def iter_graph(root, callback):
     queue = [root]
@@ -39,6 +94,7 @@ def register_hooks(var):
                         fontsize='12',
                         ranksep='0.1',
                         height='0.2')
+        from graphviz import Digraph
         dot = Digraph(node_attr=node_attr, graph_attr=dict(size="12,12"))
 
         def size_to_str(size):
