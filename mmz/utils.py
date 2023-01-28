@@ -1,11 +1,11 @@
 from collections import namedtuple
-
 import torch
 from torch.autograd import Variable, Function
 import torch
 from torch.autograd import Variable, Function
 import json
 import logging
+from sklearn.metrics import classification_report
 
 
 # https://stackoverflow.com/questions/42033142/is-there-an-easy-way-to-check-if-an-object-is-json-serializable-in-python
@@ -157,6 +157,27 @@ def performance(y, preds):
                 accuracy=accuracy_score(y, preds),
                 precision=precision_score(y, preds),
                 recall=recall_score(y, preds),
+                )
+
+def make_classification_reports(output_map, pretty_print=True, threshold=0.5):
+    out_d = dict()
+    for dname, o_map in output_map.items():
+        if threshold is None:
+            report_str = classification_report(o_map['actuals'], o_map['preds'].argmax(1))
+        else:
+            report_str = classification_report(o_map['actuals'], (o_map['preds'] > 0.5))
+        if pretty_print:
+            print("-"*10 + str(dname) + "-"*10)
+            print(report_str)
+        out_d[dname] = report_str
+    return out_d
+
+def multiclass_performance(y, preds, average='micro'):
+    from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
+    return dict(f1=f1_score(y, preds, average=average),
+                accuracy=accuracy_score(y, preds),
+                precision=precision_score(y, preds, average=average),
+                recall=recall_score(y, preds, average=average),
                 )
 
 def build_argparse(default_option_kwargs, description=''):
