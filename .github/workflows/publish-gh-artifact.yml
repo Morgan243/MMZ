@@ -1,0 +1,28 @@
+name: Publish GH Artifact
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+      - name: Build package
+        run: python -m build
+      - name: Upload dist as GH Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          # MMZ-0.1-py3-none-any.whl
+          name: MMZ-DIST-${{ matrix.python-version }}
+          path: |
+            dist
