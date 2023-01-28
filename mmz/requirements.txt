@@ -1,0 +1,6 @@
+attrs
+numpy
+pandas
+sklearn
+torch
+torchvision
