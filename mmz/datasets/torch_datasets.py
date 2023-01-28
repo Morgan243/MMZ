@@ -14,6 +14,7 @@ import numpy as np
 
 class BaseDataset(data.Dataset):
     env_key = None
+
     @staticmethod
     def data_loader_from_dataset(dset, batch_size=64, num_workers=2,
                       batches_per_epoch=None, random_sample=True,
@@ -34,7 +35,6 @@ class BaseDataset(data.Dataset):
                                           **kwargs)
         return dataloader
 
-
     def to_dataloader(self, batch_size=64, num_workers=2,
                       batches_per_epoch=None, random_sample=True,
                       shuffle=False, **kwargs):
@@ -44,6 +44,7 @@ class BaseDataset(data.Dataset):
                                       random_sample=random_sample,
                                       shuffle=shuffle, **kwargs)
         return dl
+
 
 class FileDirDataset(BaseDataset):
     def __init__(self, dataroot, load_func=None, filter_func=None, transform=None):
@@ -73,7 +74,6 @@ class FileDirDataset(BaseDataset):
             obj = (obj, self.all_labels[item])
 
         return obj
-
 
     def join_labels(self, name, label_s):
         self.label_df[name] = label_s
@@ -134,6 +134,7 @@ def make_fashion_mnist(batch_size=128, num_workers=4, image_size=28, dataroot='~
 
     # Decide which device we want to run on
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 @attr.attrs
 class NDGaussian(data.Dataset):

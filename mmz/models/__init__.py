@@ -2,6 +2,11 @@ import attr
 from tqdm.auto import tqdm
 import numpy as np
 import torch
+from dataclasses import dataclass, field
+from typing import List, Optional, Type, ClassVar
+from simple_parsing.helpers import JsonSerializable
+from mmz import datasets
+
 #from torch import data as tdata
 from torch.utils import data as tdata
 
@@ -112,6 +117,29 @@ class FactorByConstant(torch.nn.Module):
 
     def forward(self, x):
         return x * self.scale
+
+
+
+@dataclass
+class ModelOptions(JsonSerializable):
+    non_hyperparams: ClassVar[Optional[list]] = ['device']
+
+    @classmethod
+    def get_all_model_hyperparam_names(cls):
+        return [k for k, v in cls.__annotations__.items()
+                if k not in cls.non_hyperparams]
+
+    def make_model_kws(self, dataset=None, **kws):
+        non_model_params = self.get_all_model_hyperparam_names()
+        return {k: v for k, v in self.__annotations__.items() if k not in non_model_params}
+
+    def make_model(self, dataset: Optional[datasets.BaseDataset] = None, in_channels=None, window_size=None):
+        raise NotImplementedError()
+
+    def make_model_regularizer_function(self, model):
+        return None
+
+
 
 
 @attr.attrs
