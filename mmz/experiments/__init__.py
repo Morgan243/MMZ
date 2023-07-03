@@ -6,7 +6,7 @@ from os.path import join as pjoin
 from pathlib import Path
 import os
 import json
-from typing import Optional
+from typing import Optional, Dict
 from mmz import utils
 
 
@@ -14,7 +14,7 @@ logger = utils.get_logger('experiments.base')
 
 
 @dataclass
-class TaskOptions(JsonSerializable):
+class TaskOptions(JsonSerializable, utils.SetParamsMixIn):
     n_epochs: int = 100
 
     learning_rate: float = 0.001
@@ -27,7 +27,7 @@ class TaskOptions(JsonSerializable):
 
 
 @dataclass
-class ResultOptions(JsonSerializable):
+class ResultOptions(JsonSerializable, utils.SetParamsMixIn):
     result_dir: Optional[str] = None
     save_model_path: Optional[str] = None
 
@@ -44,7 +44,7 @@ class ResultOptions(JsonSerializable):
 
 
 @dataclass
-class ResultInputOptions(JsonSerializable):
+class ResultInputOptions(JsonSerializable, utils.SetParamsMixIn):
     result_file: str = None
     model_base_path: Optional[str] = None
 
@@ -58,7 +58,7 @@ class ResultInputOptions(JsonSerializable):
 
 
 @dataclass
-class Experiment(JsonSerializable):
+class Experiment(JsonSerializable, utils.SetParamsMixIn):
     result_output: ResultOptions = field(default_factory=ResultOptions)
     tag: Optional[str] = None
 

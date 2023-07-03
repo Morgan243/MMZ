@@ -79,6 +79,15 @@ class Squeeze(torch.nn.Module):
         return x.squeeze()
 
 
+class OneHotEncode(torch.nn.Module):
+    def __init__(self, num_classes=-1):
+        super(Squeeze, self).__init__()
+        self.num_classes = num_classes
+
+    def forward(self, x):
+        return torch.nn.functional.one_hot(x, classes=self.num_classes)
+
+
 class StandardizeOnLastDim(torch.nn.Module):
     eps = 1e-05
 
@@ -117,6 +126,91 @@ class FactorByConstant(torch.nn.Module):
 
     def forward(self, x):
         return x * self.scale
+
+class GaussianNoise(torch.nn.Module):
+    """
+    Adapted from https://discuss.pytorch.org/t/where-is-the-noise-layer-in-pytorch/2887/3
+    Gaussian noise regularizer.
+
+    Args:
+        sigma (float, optional): relative standard deviation used to generate the
+            noise. Relative means that it will be multiplied by the magnitude of
+            the value your are adding the noise to. This means that sigma can be
+            the same regardless of the scale of the vector.
+        is_relative_detach (bool, optional): whether to detach the variable before
+            computing the scale of the noise. If `False` then the scale of the noise
+            won't be seen as a constant but something to optimize: this will bias the
+            network to generate vectors with smaller values.
+    """
+
+    def __init__(self, sigma=0.1, is_relative_detach=True):
+        super().__init__()
+        self.sigma = sigma
+        self.is_relative_detach = is_relative_detach
+        self.noise = torch.tensor(0)
+
+    def forward(self, x):
+        if self.training and self.sigma != 0:
+            if self.noise.device != x.device:
+                self.noise = self.noise.to(x.device)
+            scale = self.sigma * x.detach() if self.is_relative_detach else self.sigma * x
+            sampled_noise = self.noise.repeat(*x.size()).float().normal_() * scale
+            x = x + sampled_noise
+        return x
+
+
+class LinearBlock(torch.nn.Module):
+    """
+
+    Attributes
+    ----------
+    linear_block : 
+    """
+    def __init__(self, outputs: int, regularize=True, activation=torch.nn.LeakyReLU):
+        super(LinearBlock, self).__init__()
+        self.linear_block = self.make_linear_block(outputs, regularize, activation)
+
+    def forward(self, x):
+        return self.linear_block(x)
+
+    @staticmethod
+    def make_linear_block(outputs: int , regularize=True, activation=torch.nn.LeakyReLU,
+                          dropout_rate: float =0.0, batch_norm=True) -> torch.nn.Module:
+        """
+
+        Parameters
+        ----------
+        outputs : 
+            
+        regularize : 
+            
+        activation : 
+            
+        dropout_rate : 
+            
+        batch_norm : 
+            
+
+        Returns
+        -------
+        
+            
+        """
+        l = list()
+        if regularize and dropout_rate > 0.:
+            l.append(torch.nn.Dropout(dropout_rate))
+
+        l.append(torch.nn.LazyLinear(outputs))
+
+        if regularize and batch_norm:
+            l.append(torch.nn.LazyBatchNorm1d(momentum=0.2, 
+                                              track_running_stats=True, 
+                                              affine=True))
+
+        if activation is not None:
+            l.append(activation())
+
+        return torch.nn.Sequential(*l)
 
 
 

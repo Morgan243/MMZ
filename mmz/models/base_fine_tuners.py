@@ -20,6 +20,8 @@ class MultiChannelFromSingleChannel(torch.nn.Module):
         x_arr = input_d['signal_arr']
 
         outputs_l = list()
+        # TODO: Track this better
+        self.model_1d.eval()
         for i in range(x_arr.shape[self.model_dim]):
             _input_d = dict(sensor_ras_coord_arr=ras_arr.select(self.model_dim, i).unsqueeze(1),
                             signal_arr=x_arr.select(self.model_dim, i).unsqueeze(1))

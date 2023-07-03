@@ -5,6 +5,7 @@ import torch
 from torch.autograd import Variable, Function
 import json
 import logging
+from typing import Dict, Optional
 from sklearn.metrics import classification_report
 
 
@@ -121,6 +122,65 @@ def register_hooks(var):
 
     return make_dot
 
+# Is there a built in way to do this on a class?
+class SetParamsMixIn:
+    """Adds a `set_params()` method to set attributes from a mapping, but only attributes that already exist.
+    Otherwise, throws error"""
+    def set_params(self, d: Optional[Dict] = None, **kws):
+        if d is not None and isinstance(d, dict):
+            p_d = d
+        elif d is None:
+            p_d = dict()
+        else:
+            raise ValueError()
+
+        p_d.update(kws)
+
+        for k, v in p_d.items():
+            assert hasattr(self, k), f"{k} not an attribute of {self}"
+            current_value = getattr(self, k)
+            if issubclass(type(current_value), SetParamsMixIn) and isinstance(v, dict):
+                current_value.set_params(v)
+                setattr(self, k, current_value)
+            else:
+                setattr(self, k, v)
+
+        return self
+
+
+    @staticmethod
+    def _set_recursive_dot_attribute(parent, dot_k: str, v: object, sep='.'):
+        k_l = dot_k.split(sep)
+        assert hasattr(parent, k_l[0])
+        if len(k_l) == 1:
+            setattr(parent, k_l[0], v)
+        else:
+            _next = getattr(parent, k_l[0])
+            SetParamsMixIn._set_recursive_dot_attribute(_next, ".".join(k_l[1:]), v, sep=sep)
+        return parent
+
+    def set_recursive_dot_attribute(self, dot_k: str, v: object, sep='.', parent=None):
+        self._set_recursive_dot_attribute(self if parent is None else parent,
+                                         dot_k, v, sep)
+        return self
+
+    @staticmethod
+    def _get_recursive_dot_attribute(parent, dot_k, sep='.'):
+        k_l = dot_k.split(sep)
+        #parent = self if parent is None else parent
+        assert hasattr(parent, k_l[0])
+        if len(k_l) == 1:
+            v = getattr(parent, k_l[0])
+        else:
+            _next = getattr(parent, k_l[0])
+            v = SetParamsMixIn._get_recursive_dot_attribute(_next, ".".join(k_l[1:]), sep=sep)
+        return v
+
+    def get_recursive_dot_attribute(self, dot_k, sep='.', parent=None):
+        return self._get_recursive_dot_attribute(self if parent is None else parent,
+                                                 dot_k, sep)
+
+
 def example_grad_check_usage():
     x = torch.randn(10, 10, requires_grad=True)
     y = torch.randn(10, 10, requires_grad=True)
@@ -172,7 +232,7 @@ def make_classification_reports(output_map, pretty_print=True, threshold=0.5):
         out_d[dname] = report_str
     return out_d
 
-def multiclass_performance(y, preds, average='micro'):
+def multiclass_performance(y, preds, average='weighted'):
     from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
     return dict(f1=f1_score(y, preds, average=average),
                 accuracy=accuracy_score(y, preds),
