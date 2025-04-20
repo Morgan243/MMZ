@@ -77,8 +77,16 @@ class GuidanceLlamaCppConfig(Serializable):
 
 @dataclass
 class GuidanceOpenAIOllamaConfig(Serializable):
+    """
+    Tried to do this to have guidance work with a local remote servers
+    but this breaks...guidance must use soem openai specific api functionality here..
+    """
     model_name: str = 'qwen2.5-coder:7b-instruct-q4_K_M'
-    base_url: str = 'http://127.0.0.1:11434/'
+    #base_url: str = 'http://mesh:8000/v1'
+    base_url: str = 'http://mesh:11434/v1'
+    #base_url: str = 'http://127.0.0.1:11434/'
+    #local openai_compat_url = 'http://mesh:11434/v1/'
+
 
     loaded_model_: models.Model = field(default=None, init=False)
 
@@ -88,6 +96,17 @@ class GuidanceOpenAIOllamaConfig(Serializable):
             self.loaded_model_ = models.OpenAI(model=self.model_name, api_key='ollama',
                                                base_url=self.base_url, echo=False)
         return self.loaded_model_
+
+    def test(self):
+        self = GuidanceOpenAIOllamaConfig()
+        model = self.model
+
+        from guidance.library._role import assistant
+        with assistant():
+            model + "hi"
+            res = self.test()
+            print(res)
+
 
 
 

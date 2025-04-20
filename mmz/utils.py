@@ -1,26 +1,86 @@
 from collections import namedtuple
+import sys
 import torch
 from torch.autograd import Variable, Function
-import torch
-from torch.autograd import Variable, Function
+from typing import List, Callable, Dict, Optional, Tuple, Type, Any
+from sklearn.metrics import classification_report
+import subprocess
 import json
 import logging
-from typing import Dict, Optional
-from sklearn.metrics import classification_report
+import numpy as np
+import torch.nn as nn
+from graphviz import Digraph
+import argparse
 
 
 # https://stackoverflow.com/questions/42033142/is-there-an-easy-way-to-check-if-an-object-is-json-serializable-in-python
-def is_jsonable(x):
+def is_jsonable(x: str) -> bool:
+    """
+    Check if an object is JSON serializable.
+
+    Parameters
+    ----------
+    x : str
+        The object to check for JSON serialization.
+
+    Returns
+    -------
+    bool
+        True if the object is JSON serializable, False otherwise.
+    """
     try:
         json.dumps(x)
         return True
     except (TypeError, OverflowError):
         return False
 
-def get_logger(logname='mmz', console_level=logging.DEBUG, file_level=logging.DEBUG,
-               format_string='%(asctime)s - %(name)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s',
-               #format_string='%(asctime)s - %(module)s.%(funcName)s - %(levelname)s - %(message)s',
-               output_file=None):
+
+def run_subprocess(command: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Run a subprocess and capture its output and error.
+
+    Parameters
+    ----------
+    command : List[str]
+        The command to run as a list of arguments.
+
+    Returns
+    -------
+    Tuple[Optional[str], Optional[str]]
+        A tuple containing the standard output and standard error.
+    """
+    try:
+        result = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = result.communicate()
+        return output.decode('utf-8'), error.decode('utf-8') if error else None
+    except FileNotFoundError:
+        return None, "Executable not found."
+
+
+def get_logger(logname: str = 'mmz', console_level: int = logging.DEBUG, file_level: int = logging.DEBUG,
+               format_string: str = '%(asctime)s - %(name)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s',
+               output_file: Optional[str] = None) -> logging.Logger:
+    """
+    Get a logger with specified settings.
+
+    Parameters
+    ----------
+    logname : str, optional
+        The name of the logger.
+    console_level : int, optional
+        The logging level for the console handler.
+    file_level : int, optional
+        The logging level for the file handler.
+    format_string : str, optional
+        The format string for the log messages.
+    output_file : Optional[str], optional
+        The file path to write logs to.
+
+    Returns
+    -------
+    logging.Logger
+        The configured logger.
+    """
     logger = logging.getLogger(logname)
     if logger.hasHandlers():
         return logging.getLogger(logname)
@@ -50,7 +110,22 @@ def get_logger(logname='mmz', console_level=logging.DEBUG, file_level=logging.DE
     return logger
 
 
-def with_logger(cls=None, prefix_name=None):
+def with_logger(cls: Optional[Type] = None, prefix_name: Optional[str] = None) -> Type:
+    """
+    Decorator to add a logger to a class.
+
+    Parameters
+    ----------
+    cls : Optional[Type], optional
+        The class to decorate.
+    prefix_name : Optional[str], optional
+        The prefix name for the logger.
+
+    Returns
+    -------
+    Type
+        The decorated class with a logger.
+    """
     def _make_cls(cls):
         n = __name__ if prefix_name is None else prefix_name
         cls.logger = get_logger(n + '.' + cls.__name__)
@@ -61,8 +136,17 @@ def with_logger(cls=None, prefix_name=None):
     return cls
 
 
+def iter_graph(root: Function, callback: Callable[[Function], None]) -> None:
+    """
+    Iterate over the computational graph starting from a root function.
 
-def iter_graph(root, callback):
+    Parameters
+    ----------
+    root : Function
+        The root function of the computational graph.
+    callback : Callable[[Function], None]
+        A callback function to apply to each node in the graph.
+    """
     queue = [root]
     seen = set()
     while queue:
@@ -75,7 +159,21 @@ def iter_graph(root, callback):
                 queue.append(next_fn)
         callback(fn)
 
-def register_hooks(var):
+
+def register_hooks(var: Variable) -> Callable[[], Digraph]:
+    """
+    Register hooks to capture gradients and build a computational graph.
+
+    Parameters
+    ----------
+    var : Variable
+        The variable to register hooks for.
+
+    Returns
+    -------
+    Callable[[], Digraph]
+        A function that returns the built computational graph.
+    """
     fn_dict = {}
     def hook_cb(fn):
         def register_grad(grad_input, grad_output):
@@ -181,7 +279,10 @@ class SetParamsMixIn:
                                                  dot_k, sep)
 
 
-def example_grad_check_usage():
+def example_grad_check_usage() -> None:
+    """
+    Example usage of gradient checking and graph visualization.
+    """
     x = torch.randn(10, 10, requires_grad=True)
     y = torch.randn(10, 10, requires_grad=True)
 
@@ -192,26 +293,81 @@ def example_grad_check_usage():
     dot = get_dot()
     dot.save('tmp.dot')
 
-def print_sequential_arch(m, t_x):
+def print_sequential_arch(m: nn.Sequential, t_x: torch.Tensor) -> None:
+    """
+    Print the architecture of a sequential model and intermediate predictions.
+
+    Parameters
+    ----------
+    m : nn.Sequential
+        The sequential model to inspect.
+    t_x : torch.Tensor
+        The input tensor to pass through the model.
+    """
     for i in range(0, len(m)):
         print(m[i])
         l_preds = m[:i + 1](t_x)
         print(l_preds.shape)
         print("----")
 
-def number_of_model_params(m, trainable_only=True):
+def number_of_model_params(m: nn.Module, trainable_only: bool = True) -> int:
+    """
+    Calculate the total number of parameters in a model.
+
+    Parameters
+    ----------
+    m : nn.Module
+        The model to inspect.
+    trainable_only : bool, optional
+        Whether to count only trainable parameters.
+
+    Returns
+    -------
+    int
+        The total number of parameters.
+    """
     p_cnt = sum(p.numel() for p in m.parameters()
                 if (p.requires_grad and trainable_only) or not trainable_only)
     return p_cnt
 
-def build_default_options(default_option_kwargs, **overrides):
+def build_default_options(default_option_kwargs: List[Dict], **overrides) -> namedtuple:
+    """
+    Build default options from keyword arguments and overrides.
+
+    Parameters
+    ----------
+    default_option_kwargs : List[Dict]
+        A list of dictionaries containing default option configurations.
+    **overrides : Any
+        Keyword arguments to override the default options.
+
+    Returns
+    -------
+    namedtuple
+        A named tuple with the built options.
+    """
     opt_keys = [d['dest'].replace('-', '_')[2:]
                 for d in default_option_kwargs]
     Options = namedtuple('Options', opt_keys)
     return Options(*[d['default'] if o not in overrides else overrides[o]
                      for o, d in zip(opt_keys, default_option_kwargs)])
 
-def performance(y, preds):
+def performance(y: np.ndarray, preds: np.ndarray) -> Dict[str, float]:
+    """
+    Calculate performance metrics for binary classification.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        The true labels.
+    preds : np.ndarray
+        The predicted probabilities or class labels.
+
+    Returns
+    -------
+    Dict[str, float]
+        A dictionary containing F1 score, accuracy, precision, and recall.
+    """
     from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
     return dict(f1=f1_score(y, preds),
                 accuracy=accuracy_score(y, preds),
@@ -219,7 +375,24 @@ def performance(y, preds):
                 recall=recall_score(y, preds),
                 )
 
-def make_classification_reports(output_map, pretty_print=True, threshold=0.5):
+def make_classification_reports(output_map: Dict[str, Dict], pretty_print: bool = True, threshold: Optional[float] = 0.5) -> Dict[str, str]:
+    """
+    Generate classification reports for multiple datasets.
+
+    Parameters
+    ----------
+    output_map : Dict[str, Dict]
+        A dictionary mapping dataset names to their actuals and predictions.
+    pretty_print : bool, optional
+        Whether to print the reports in a readable format.
+    threshold : Optional[float], optional
+        The threshold for binary classification (None for multiclass).
+
+    Returns
+    -------
+    Dict[str, str]
+        A dictionary mapping dataset names to their classification reports.
+    """
     out_d = dict()
     for dname, o_map in output_map.items():
         if threshold is None:
@@ -232,7 +405,24 @@ def make_classification_reports(output_map, pretty_print=True, threshold=0.5):
         out_d[dname] = report_str
     return out_d
 
-def multiclass_performance(y, preds, average='weighted'):
+def multiclass_performance(y: np.ndarray, preds: np.ndarray, average: str = 'weighted') -> Dict[str, float]:
+    """
+    Calculate performance metrics for multiclass classification.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        The true labels.
+    preds : np.ndarray
+        The predicted class labels.
+    average : str, optional
+        The averaging strategy for multiclass metrics.
+
+    Returns
+    -------
+    Dict[str, float]
+        A dictionary containing F1 score, accuracy, precision, and recall.
+    """
     from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
     return dict(f1=f1_score(y, preds, average=average),
                 accuracy=accuracy_score(y, preds),
@@ -240,7 +430,22 @@ def multiclass_performance(y, preds, average='weighted'):
                 recall=recall_score(y, preds, average=average),
                 )
 
-def build_argparse(default_option_kwargs, description=''):
+def build_argparse(default_option_kwargs: List[Dict], description: str = '') -> argparse.ArgumentParser:
+    """
+    Build an ArgumentParser with default options.
+
+    Parameters
+    ----------
+    default_option_kwargs : List[Dict]
+        A list of dictionaries containing default option configurations.
+    description : str, optional
+        The description for the argument parser.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        The configured ArgumentParser.
+    """
     import argparse
     parser = argparse.ArgumentParser(description=description)
     for _kwargs in default_option_kwargs:
@@ -252,7 +457,19 @@ def build_argparse(default_option_kwargs, description=''):
 import sys, os
 import torch.distributed as dist
 ## From tourch tutorial: https://pytorch.org/tutorials/intermediate/ddp_tutorial.html
-def setup(rank, world_size, init_file=None):
+def setup(rank: int, world_size: int, init_file: Optional[str] = None) -> None:
+    """
+    Set up the distributed environment.
+
+    Parameters
+    ----------
+    rank : int
+        The rank of the current process.
+    world_size : int
+        The total number of processes.
+    init_file : Optional[str], optional
+        The initialization file for Windows platform.
+    """
     if sys.platform == 'win32':
         # Distributed package only covers collective communications with Gloo
         # backend and FileStore on Windows platform. Set init_method parameter
@@ -276,22 +493,57 @@ def setup(rank, world_size, init_file=None):
         # initialize the process group
         dist.init_process_group("gloo", rank=rank, world_size=world_size)
 
-def cleanup():
+def cleanup() -> None:
+    """
+    Clean up the distributed environment.
+    """
     dist.destroy_process_group()
 
 """ Dataset partitioning helper """
 class Partition(object):
+    """
+    A partition of data based on indices.
 
-    def __init__(self, data, index):
+    Parameters
+    ----------
+    data : Any
+        The data to partition.
+    index : List[int]
+        The list of indices defining the partition.
+    """
+
+    def __init__(self, data: Any, index: List[int]):
         self.data = data
         self.index = index
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """
+        Get the length of the partition.
+
+        Returns
+        -------
+        int
+            The number of elements in the partition.
+        """
         return len(self.index)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Any:
+        """
+        Get an element from the partition by index.
+
+        Parameters
+        ----------
+        index : int
+            The index of the element to retrieve.
+
+        Returns
+        -------
+        Any
+            The element at the specified index.
+        """
         data_idx = self.index[index]
         return self.data[data_idx]
+
 
 # From https://pytorch.org/tutorials/intermediate/dist_tuto.html
 from random import Random

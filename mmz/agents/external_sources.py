@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 from tqdm.auto import tqdm
 
+
 @dataclass
 class WikipediaTwoPhaseSearch(Serializable):
     max_results: int = 5
