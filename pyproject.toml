@@ -9,6 +9,7 @@ dependencies = [
     "autogen-ext[semantic-kernel-hugging-face,semantic-kernel-ollama]>=0.4.4",
     "autogenstudio>=0.4.0.4",
     "gpustat>=1.1.1",
+    "graphviz>=0.20.3",
     "guidance==0.2.1",
     "llama-cpp-python",
     "llama-cpp-scripts",
@@ -16,16 +17,17 @@ dependencies = [
     "mlflow>=2.21.3",
     "pandas>=2.2.3",
     "pip>=25.0.1",
+    "pytest>=8.3.5",
     "simple-parsing>=0.1.7",
+    "sse-starlette>=2.2.1",
+    "starlette-context>=0.4.0",
     "torchvision>=0.21.0",
     "vectorcode>=0.5.5",
     "wikipedia>=1.4.0",
 ]
 
 [tool.uv.sources]
-llama-cpp-scripts = { path = "../llm_poc/llama.cpp" }
 mmz = { workspace = true }
-llama-cpp-python = { path = "../llm_poc/llama-cpp-python/dist/llama_cpp_python-0.3.8-cp312-cp312-linux_x86_64.whl" }
 
 [dependency-groups]
 dev = [
