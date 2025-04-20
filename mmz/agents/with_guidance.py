@@ -91,10 +91,3 @@ class GuidanceOpenAIOllamaConfig(Serializable):
 
 
 
-ggo = GuidanceOpenAIOllamaConfig()
-m = ggo.model
-with instruction():
-    o = m + gen("test", max_tokens=100)
-    print(o)
-
-
