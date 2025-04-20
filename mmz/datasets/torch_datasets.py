@@ -12,6 +12,7 @@ from glob import glob
 from os.path import split, join
 import numpy as np
 
+
 class BaseDataset(data.Dataset):
     env_key = None
 

@@ -12,6 +12,7 @@ dependencies = [
     "guidance==0.2.1",
     "llama-cpp-python",
     "llama-cpp-scripts",
+    "lmql>=0.7.3",
     "mlflow>=2.21.3",
     "pandas>=2.2.3",
     "pip>=25.0.1",

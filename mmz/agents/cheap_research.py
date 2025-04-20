@@ -2,6 +2,7 @@ from guidance import gen
 from dataclasses import dataclass, field
 from typing import Optional
 from simple_parsing import Serializable
+import json
 
 from mmz import agents as az
 from mmz.agents import tools as mzt
@@ -13,6 +14,11 @@ from tqdm.auto import tqdm
 
 @dataclass
 class CheapResearch(Serializable):
+    """
+    TODO:
+    This agent aims to provide an answer in the fastest and cheapest way possible.
+    - make more simple read only system access tools, like list process, list files
+    """
     query: str = None
     gg: Optional[GuidanceGuide] = None
     gg_relevance: Optional[GuidanceGuide] = None
@@ -22,12 +28,17 @@ class CheapResearch(Serializable):
     expansion_limit: int = 3
     results_frame_: pd.DataFrame = field(default=None, init=None)
 
-    def relevance_by_independent_scoring(self, query: str, summaries:list) -> pd.DataFrame:
-        scores = [dict(relevance_score=self.gg.get_relevance_score(user_q=query, summary=s),
+    @staticmethod
+    def relevance_by_independent_scoring(gg: GuidanceGuide,
+                                         query: str,
+                                         summaries: list) -> pd.DataFrame:
+        scores = [dict(relevance_score=gg.get_relevance_score(user_q=query, summary=s),
                        summary=s, title=s['title'])
-                  for ii, s in tqdm(enumerate(summaries), desc="Reviewing summaries",
+                  for ii, s in tqdm(enumerate(summaries),
+                                    desc="Reviewing summaries",
                                     total=len(summaries))]
-        scores_df = pd.DataFrame(scores).sort_values('relevance_score', ascending=False)
+        scores_df = (pd.DataFrame(scores)
+                     .sort_values('relevance_score', ascending=False))
         scores_df['relevance_score'] = scores_df['relevance_score'].astype(int)
         return scores_df
 
@@ -61,7 +72,7 @@ class CheapResearch(Serializable):
             filtered_content = ordered_content[:5]
         elif self.relevance_strategy == 'score':
             scores_df = self.relevance_by_independent_scoring(
-                query=query, summaries=summaries)
+                gg=self.gg, query=query, summaries=summaries)
             scores_df['is_relevant'] = scores_df.relevance_score.pipe(
                 lambda s: s.gt(s.median()) | s.eq(s.max()))
             # display the full dataframwe, all columns and rows no matter the size
@@ -73,14 +84,6 @@ class CheapResearch(Serializable):
             filtered_content = ordered_content
             self.results_frame_ = scores_df
 
-        # This will do it all in one go
-        #gg.filter_to_relevant_summeries(user_q=query,
-        #                                summaries=summaries)
-
-        #search_res = s.search([query] + ex_topics,
-        #                      relevance_func=gg.filter_to_relevant_summeries)
-
-        import json
         txt_res = json.dumps(filtered_content, indent=2)
 
         prompt = f"""Given this background content\n--------------{txt_res}------------\nAnswer this query concisely: {query}\n"""

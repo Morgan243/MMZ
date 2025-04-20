@@ -34,6 +34,7 @@ class GuidanceLlamaCppConfig(Serializable):
     @property
     def model(self) -> models.Model:
         if self.loaded_model_ is None:
+            models.LlamaCpp
             self.loaded_model_ = models.LlamaCpp(self.model_path, echo=False,
                                                  n_gpu_layers=self.n_gpu_layers,
                                                  n_ctx=self.n_ctx)
@@ -58,6 +59,13 @@ class GuidanceLlamaCppConfig(Serializable):
                 n_ctx=32000,
                 n_gpu_layers=18,
             ),
+            'large': GuidanceLlamaCppConfig(
+                # /home/botbag/external/hf/Qwen/Qwen2.5-3B-Instruct/Qwen2.5-3B-Instruct-BF16.gguf
+                model_path='/home/botbag/external/hf/Qwen/Qwen2.5-7B-Instruct/Qwen2.5-7B-Instruct-BF16.gguf',
+                n_ctx=32000,
+                n_gpu_layers=10,
+            ),
+
         }
         return default_configs
 
@@ -65,5 +73,28 @@ class GuidanceLlamaCppConfig(Serializable):
     def get_preset(cls, name:str = 'small') -> 'GuidanceLlamaCppConfig':
         configs = cls.make_preset_map()
         return configs[name]
+
+
+@dataclass
+class GuidanceOpenAIOllamaConfig(Serializable):
+    model_name: str = 'qwen2.5-coder:7b-instruct-q4_K_M'
+    base_url: str = 'http://127.0.0.1:11434/'
+
+    loaded_model_: models.Model = field(default=None, init=False)
+
+    @property
+    def model(self) -> models.Model:
+        if self.loaded_model_ is None:
+            self.loaded_model_ = models.OpenAI(model=self.model_name, api_key='ollama',
+                                               base_url=self.base_url, echo=False)
+        return self.loaded_model_
+
+
+
+ggo = GuidanceOpenAIOllamaConfig()
+m = ggo.model
+with instruction():
+    o = m + gen("test", max_tokens=100)
+    print(o)
 
 
