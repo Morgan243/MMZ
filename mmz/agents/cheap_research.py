@@ -1,4 +1,3 @@
-from guidance import gen
 from dataclasses import dataclass, field
 from typing import Optional
 from simple_parsing import Serializable
@@ -6,7 +5,7 @@ import json
 
 from mmz import agents as az
 from mmz.agents import tools as mzt
-from mmz.agents.tools import GuidanceGuide
+from mmz.agents.tools.with_guidance import GuidanceGuide
 from mmz.agents import external_sources as mxs
 import pandas as pd
 from tqdm.auto import tqdm
@@ -37,6 +36,7 @@ class CheapResearch(Serializable):
                   for ii, s in tqdm(enumerate(summaries),
                                     desc="Reviewing summaries",
                                     total=len(summaries))]
+        assert len(scores) > 0
         scores_df = (pd.DataFrame(scores)
                      .sort_values('relevance_score', ascending=False))
         scores_df['relevance_score'] = scores_df['relevance_score'].astype(int)
@@ -68,7 +68,8 @@ class CheapResearch(Serializable):
                                                                relevance_grammar=az.relevance_by_json_int_list)
             print(f"Num summaries = {len(summaries)}")
             input(f"Relevances = {relevance_ixes}, continue? :")
-            ordered_content = [s.get_content(summaries[ii]['title']) for ii in relevance_ixes]
+            ordered_content = [s.get_content(
+                summaries[ii]['title']) for ii in relevance_ixes]
             filtered_content = ordered_content[:5]
         elif self.relevance_strategy == 'score':
             scores_df = self.relevance_by_independent_scoring(
@@ -79,16 +80,19 @@ class CheapResearch(Serializable):
             pd.set_option('display.max_rows', None,
                           'display.max_columns', None)
             print(scores_df)
-            #input(f"Scores {scores_df.relevance_score.values.tolist()}, continue?: ")
-            ordered_content = scores_df.query("is_relevant").summary.tolist() #[summaries[ii] for ii in list(sorted(scores))]
+            # input(f"Scores {scores_df.relevance_score.values.tolist()}, continue?: ")
+            # [summaries[ii] for ii in list(sorted(scores))]
+            ordered_content = scores_df.query("is_relevant").summary.tolist()
             filtered_content = ordered_content
             self.results_frame_ = scores_df
 
         txt_res = json.dumps(filtered_content, indent=2)
 
-        prompt = f"""Given this background content\n--------------{txt_res}------------\nAnswer this query concisely: {query}\n"""
+        prompt = f"""Given this background content\n--------------{
+            txt_res}------------\nAnswer this query concisely: {query}\n"""
         print(prompt)
-        out = gg.model + prompt + mzt.get_q_and_a_grammar(name='answer') #gen("answer", max_tokens=1024)
+        # gen("answer", max_tokens=1024)
+        out = gg.model + prompt + mzt.get_q_and_a_grammar(name='answer')
         synth_text = out['answer']
         print("-----")
         print(synth_text)
@@ -96,13 +100,22 @@ class CheapResearch(Serializable):
         return synth_text
 
 
-#gg = GuidanceGuide()
-#print(gg.model_path)
-#out = gg.expand_topics("donal trump")
-#print(out)
-#type(out)
-#import json
-#res = json.loads(out)
-#res
+#gg = GuidanceGuide(model_preset='small')
+gg = GuidanceGuide(model_preset='med_bf16')
+
+rva = gg.expand_topics("richmond virgnia")
+rvasec = gg.expand_topics("rvasec conference 2025")
+print(rva)
+print(rvasec)
 
 
+cr = CheapResearch(query="when is rvasec conference 2025",  gg=gg)
+cr_res = cr.run()
+
+# print(gg.model_path)
+# out = gg.expand_topics("donal trump")
+# print(out)
+# type(out)
+# import json
+# res = json.loads(out)
+# res

@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass, field
-from guidance import models, gen, block
+from guidance import models as gmodels
 from mmz.agents import tools as mzt
 from typing import ClassVar, Optional
 import pydantic
@@ -22,7 +22,7 @@ class GuidanceLlamaCppConfig(Serializable):
     n_gpu_layers: int = 0
     n_ctx: int = 1024
 
-    loaded_model_: models.Model = field(default=None, init=False)
+    loaded_model_: gmodels.Model = field(default=None, init=False)
 
     @classmethod
     def make_kws(cls, model_name: str, **overrides) -> dict[str, object]:
@@ -32,10 +32,9 @@ class GuidanceLlamaCppConfig(Serializable):
         return base_kws
 
     @property
-    def model(self) -> models.Model:
+    def model(self) -> gmodels.Model:
         if self.loaded_model_ is None:
-            models.LlamaCpp
-            self.loaded_model_ = models.LlamaCpp(self.model_path, echo=False,
+            self.loaded_model_ = gmodels.LlamaCpp(self.model_path, echo=False,
                                                  n_gpu_layers=self.n_gpu_layers,
                                                  n_ctx=self.n_ctx)
         return self.loaded_model_
@@ -48,6 +47,7 @@ class GuidanceLlamaCppConfig(Serializable):
                 n_ctx=32000,
                 n_gpu_layers=35,
             ),
+            # This is very slow, maybe broken, on older GPUs (1070GTX)
             'med': GuidanceLlamaCppConfig(
                 model_path='/home/botbag/external/hf/Qwen/Qwen2.5-3B-Instruct/Qwen2.5-3B-Instruct-Q8_0.gguf',
                 n_ctx=32000,
@@ -70,7 +70,7 @@ class GuidanceLlamaCppConfig(Serializable):
         return default_configs
 
     @classmethod
-    def get_preset(cls, name:str = 'small') -> 'GuidanceLlamaCppConfig':
+    def get_preset(cls, name: str = 'small') -> 'GuidanceLlamaCppConfig':
         configs = cls.make_preset_map()
         return configs[name]
 
@@ -88,12 +88,12 @@ class GuidanceOpenAIOllamaConfig(Serializable):
     #local openai_compat_url = 'http://mesh:11434/v1/'
 
 
-    loaded_model_: models.Model = field(default=None, init=False)
+    loaded_model_: gmodels.Model = field(default=None, init=False)
 
     @property
-    def model(self) -> models.Model:
+    def model(self) -> gmodels.Model:
         if self.loaded_model_ is None:
-            self.loaded_model_ = models.OpenAI(model=self.model_name, api_key='ollama',
+            self.loaded_model_ = gmodels.OpenAI(model=self.model_name, api_key='ollama',
                                                base_url=self.base_url, echo=False)
         return self.loaded_model_
 
